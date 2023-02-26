@@ -1,5 +1,5 @@
 # Repository for Kaggle Notebooks
----
+
 To be honest, we do not like Kaggle.
 
 It is a place full of misleading and irrelevant content (including ours). We think it is overrated by the community. Yet, there are some worth reading notebooks and some hands-on datasets for learners to play around with. In this repository, we put our work here as a backup and record our learning progress.
@@ -11,4 +11,4 @@ It is a place full of misleading and irrelevant content (including ours). We thi
 
 ---
 ##### License
-This project is licensed under the Apache-2.0 License. See the LICENSE file for details.
+This project is licensed under the Apache-2.0 License. See the [LICENSE](./LICENSE) file for details.

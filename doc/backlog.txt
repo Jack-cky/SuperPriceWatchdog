@@ -1,0 +1,31 @@
+DEV
+---
+
+
+DEBUG
+---
+
+
+PROD
+---
+fetch opw data
+build database - setup output paths
+cleanse data
+calculate unit price from promotion string
+/start
+/view - message too long unable to send out
+/plot - unable to display Chinese character
+/add - check before add
+/rm - check before rm - add remove all
+/list - add tracking count
+/watch - only show 5 random items
+/sub
+/unsub
+/lang
+/bye - secret function to remove user
+handle unknown functions
+handle non functional chat
+bot message - trim spacing
+log use action on console
+code review
+build docker image

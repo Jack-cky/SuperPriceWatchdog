@@ -1,9 +1,0 @@
-services:
-  server:
-    build:
-      context: .
-    develop:
-      watch:
-        - action: rebuild
-          path: .
-          target: /watchdog

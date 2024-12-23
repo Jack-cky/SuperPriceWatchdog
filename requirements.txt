@@ -1,9 +1,0 @@
-python-dotenv
-matplotlib
-pytz
-tabulate
-requests
-pandas
-SQLAlchemy
-python-telegram-bot
-python-telegram-bot[job-queue]

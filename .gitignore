@@ -6,4 +6,4 @@ imgs/bot/
 imgs/sources/
 .DS_Store
 .env
-credentials.txt
+00_drafts.ipynb

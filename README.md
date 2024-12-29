@@ -11,7 +11,7 @@
 While it is possible to track these fluctuations manually, such an approach can be both time-consuming and exhausting. To alleviate this burden, we are pleased to introduce SuperPriceWatchdog, a tool designed to help you monitor supermarket prices effectively.
 
 **First Published:** 15 February 2024  
-**Last Updated:** 23 December 2024
+**Last Updated:** 29 December 2024
 
 
 <!-- ROADMAP -->
@@ -31,7 +31,7 @@ While it is possible to track these fluctuations manually, such an approach can 
 ## Motivation: Maximise Savings with Effortless Deal Hunting
 SuperPriceWatchdog stands for **Super**market **Price** **Watchdog**. It is a Telegram bot designed to monitor the fluctuating prices of products across major supermarkets in Hong Kong. The goal of its creation is to help users save significant amounts of time and effort while searching for the best available deals.
 
-Users receive daily notifications (except on Fridays) about exceptional offers on their selected items. As highlighted previously, SuperPriceWatchdog seeks to alleviate the hassle of constant price monitoring, allowing users to redirect their time and energy towards other pursuits.
+Users receive daily notifications (except on Fridays and Saturday) about exceptional offers on their selected items. As highlighted previously, SuperPriceWatchdog seeks to alleviate the hassle of constant price monitoring, allowing users to redirect their time and energy towards other pursuits.
 
 <div align="center">
   <a href="https://forum.hkgolden.com/thread/7851001/page/1"><img src="./imgs/motivation.png" width="70%"></a>
@@ -53,6 +53,9 @@ Simply drop a message to [@SuperPriceWatchdog](https://t.me/SuperPriceWatchdogBo
 > [!NOTE]  
 > Latency is expected because SuperPriceWatchdog relies on community servers.
 
+> [!WARNING]  
+> Prices shown are not current; they are from two days ago.
+
 <div align="center">
   <a href="https://t.me/SuperPriceWatchdogBot"><img src="./imgs/demo.png" width="40%"></a>
 </div>
@@ -60,9 +63,9 @@ Simply drop a message to [@SuperPriceWatchdog](https://t.me/SuperPriceWatchdogBo
 <a name="2.2"></a>
 
 ### Price Alert Design
-SuperPriceWatchdog collects 60 days of price records and calculates statistics for each item. When the unit price (after promotion) is below the first quartile, that item is considered a best deal. The price monitoring is entirely automated and requires minimal effort. Unlike the official price alerts, users are required to set a target price manually or adjust it based on intuition.
+SuperPriceWatchdog collects 90 days of price records and calculates statistics for each item. When the unit price (after promotion) is below the first quartile, that item is considered a best deal. The price monitoring is entirely automated and requires minimal effort. Unlike the official price alerts, users are required to set a target price manually or adjust it based on intuition.
 
-Promotion weeks start on Fridays, meaning most prices are refreshed every Friday (based on my past experience as a Red Label Supermarket employee). Unfortunately, the latest record of Online Price Watch (OPW) data refers to the previous day's prices and promotions. Prices in our database may not reflect the most current prices. Therefore, price alerts are disabled on Fridays.
+Promotion weeks start on Fridays, meaning most prices are refreshed every Friday (based on my past experience as a Red Label Supermarket employee). Unfortunately, the latest record of Online Price Watch (OPW) data refers to prices and promotions from two days before, which means the prices in our database may not reflect the most current prices. To avoid false alerts, price alerts are set to be disabled on Fridays and Saturdays.
 
 <div align="center">
   <a href="https://t.me/SuperPriceWatchdogBot"><img src="./imgs/meme.png" width="45%"></a>
@@ -73,11 +76,11 @@ Promotion weeks start on Fridays, meaning most prices are refreshed every Friday
 <a name="3"></a>
 
 ## Solution Architecture
-SuperPriceWatchdog is built on top of the **Consumer Council**'s [OPW](https://data.gov.hk/en-data/dataset/cc-pricewatch-pricewatch) data, which provides the previous day's prices and promotions from supermarkets.
+SuperPriceWatchdog is built on top of the **Consumer Council**'s [OPW](https://data.gov.hk/en-data/dataset/cc-pricewatch-pricewatch) data, which provides item prices and promotions from supermarkets.
 
-Each day, a data pipeline retrieves the data and stores it in a **PostgreSQL** database. The ETL process is executed using **Polars**, which efficiently handles data structure and manipulation. At the end of the pipeline, daily price alerts are triggered and sent to users. Through a webhook method, users interact with SuperPriceWatchdog on **Telegram**, sending requests to a **Flask** application that processes their messages.
+Each day, a data pipeline retrieves the data and stores it in a **PostgreSQL** database. The ETL process is executed using **Polars** to handle data structure and manipulation. At the end of the pipeline, daily price alerts are triggered and sent to users. Through a webhook method, users interact with SuperPriceWatchdog on **Telegram**, sending requests to a **Flask** application that processes their messages.
 
-Both the pipeline and the web application are hosted on a **PythonAnywhere** Beginner account, while the database is maintained on **Supabase**’s free tier. These providers generously offer serverless computing resources, making it possible to host and operate the service efficiently at no cost.
+Both the pipeline and the web application are hosted on a **PythonAnywhere** Beginner account, while the database is maintained on **Supabase**’s free tier. These providers generously offer serverless computing resources, making it possible to host and operate the service at no cost.
 
 <div align="center">
   <a href="https://t.me/SuperPriceWatchdogBot"><img src="./imgs/solution_architect.png" width="60%"></a>
@@ -86,9 +89,9 @@ Both the pipeline and the web application are hosted on a **PythonAnywhere** Beg
 <a name="3.1"></a>
 
 ### System Design
-To optimise for limited computing resources, we aim to minimise the complexity of development and deployment. The system consists of only 2 operational tasks: a scheduled data pipeline and a web application. Both scripts are version-controlled using Git and are implemented with CI/CD for efficient deployment.
+To optimise for limited computing resources, we aim to minimise the complexity of development and deployment. The system consists of only 2 operational tasks: a scheduled data pipeline and a web application. Both scripts are version-controlled using GitHub and are implemented with CI/CD to streamline deployment.
 
-In the current setup on PythonAnywhere, both the scheduled task and the website hosting on the Beginner account have an expiration period. I will regularly reactivate these services to ensure that SuperPriceWatchdog remains fully operational.
+In the current setup on PythonAnywhere, both the scheduled task and the website hosting on the Beginner account have an expiration period. We will regularly reactivate these services to ensure that SuperPriceWatchdog remains fully operational.
 
 <div align="center">
   <a href="https://t.me/SuperPriceWatchdogBot"><img src="./imgs/system_design.png" width="50%"></a>
@@ -99,7 +102,7 @@ In the current setup on PythonAnywhere, both the scheduled task and the website 
 <a name="4"></a>
 
 ## Contribute to This Project
-SuperPriceWatchdog is a free service hosted on community servers, designed to assist shoppers in finding the best deals across supermarkets. We invite you to get involved and contribute to the SuperPriceWatchdog project, enhancing the service for the community.
+SuperPriceWatchdog is by no means intended for commercial use. It is available for free and hosted on community servers, designed to assist shoppers in finding the best deals across supermarkets. We invite you to get involved and contribute to the SuperPriceWatchdog project, enhancing the service for the community.
 
 Your feedback, suggestions, and support can significantly improve our features and user experience. We encourage you to create issues in this repository to collaborate and share your ideas. Join us in our mission to empower consumers and maximise savings—together, we can make shopping smarter and more efficient for everyone!
 
@@ -114,7 +117,28 @@ Your feedback, suggestions, and support can significantly improve our features a
 ## Changelog
 <details>
   <summary>[2.0.0] Revamped Version</summary>
-  [2.0.1] 2024-12-23<br>
+  [2.0.2] 2024-12-29<br>
+  Enhance project structure and error handling.
+  <h4>Added</h4>
+  <ul>
+    <li>Code of conduct for project collaboration.</li>
+    <li>Error handling in the pipeline and bot.</li>
+    <li>Example of .env for deployment template.</li>
+    <li>Template index to render the README as the default index page.</li>
+  </ul>
+  <h4>Changed</h4>
+  <ul>
+    <li>Added the original price as output in the SQL function draw_deals.</li>
+    <li>Enhanced code structure for maintainability and readability.</li>
+    <li>Renamed the SQL function from get_random_deals to draw_deals.</li>
+    <li>Updated the index page to include README content.</li>
+    <li>Updated the Makefile to streamline deployment.</li>
+  </ul>
+  <h4>Fixed</h4>
+  <ul>
+    <li>Today's data is only available two days later, and the data-fetching logic adheres to this requirement.</li>
+  </ul>
+  <hr>[2.0.1] 2024-12-23<br>
   Revamped data pipeline and Telegram bot.
   <h4>Added</h4>
   <ul>
@@ -131,7 +155,7 @@ Your feedback, suggestions, and support can significantly improve our features a
 </details>
 
 <details>
-  <summary>[1.0.0] Project Initiation</summary>
+  <summary>[1.0.0] Project initiation</summary>
   [1.0.1] 2024-02-15<br>
   Initial Repository.
 </details>

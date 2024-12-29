@@ -5,9 +5,10 @@ import re
 from datetime import datetime, timedelta
 
 import polars as pl
+import pytz
 import requests
 from dotenv import load_dotenv
-from supabase import create_client, Client
+from supabase import create_client
 from supabase.client import ClientOptions
 
 
@@ -15,124 +16,120 @@ load_dotenv("./SuperPriceWatchdog/config/.env")
 
 logging.getLogger().handlers.clear()
 logging.basicConfig(
-    level=logging.WARNING,
-    format="[%(levelname)s] %(asctime)s %(message)s",
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)8s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
 )
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
-def log(msg: str) -> None:
-    """Replace default INFO logging."""
-    print(f"[INFO] {datetime.now()} {msg}")
-
-
-class SuperPriceWatchdogPipeline:
+class Config:
     """
-    A pipeline for monitoring price changes using Open Price Watch (OPW) data.
-    This class performs ETL (Extract, Transform, Load) operations on price data
-    and alerts users of price changes.
-    
+    Configuration class to manage environment variables and constants.
+    """
+    DELTA = int(os.getenv("DELTA"))
+    DEVELOPER_ID = os.getenv("DEVELOPER_ID")
+    FORWARDING_URL = os.getenv("FORWARDING_URL")
+    SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+    SUPABASE_SCHEMA = os.getenv("SUPABASE_SCHEMA")
+    SUPABASE_URL = os.getenv("SUPABASE_URL")
+
+    API_BASE = "https://api.data.gov.hk/v1/historical-archive"
+    API_SOURCE = "https://online-price-watch.consumer.org.hk/opw/opendata/pricewatch.json"
+    API_VERSION = f"{API_BASE}/list-file-versions?url={API_SOURCE}&start={{}}&end={{}}"
+    API_FILE = f"{API_BASE}/get-file?url={API_SOURCE}&time={{}}"
+    API_BOT = f"{FORWARDING_URL}/api/v1/reply"
+
+    DT_END = datetime.today() - timedelta(days=1)
+    HKT = pytz.timezone("Asia/Singapore")
+
+    DISCOUNT_THRESHOLD = 0.3
+    BATCH_VERSION = 10
+    BATCH_INSERT = 10_000
+
+
+class SuperPriceWatchdogPipeline(Config):
+    """
+    SuperPriceWatchdogPipeline class for monitoring price changes using Open
+    Price Watch (OPW) data. This class implements an ETL (Extract, Transform,
+    Load) process to manage price data and alert users of any price changes.
+
     The pipeline is designed to run daily, downloading price data, cleansing it,
     and updating a database with new prices and items.
     """
-    
     def __init__(self):
-        self.api = self._initialise_api()
-        self.supabase_client = self._initialise_database_client()
-        self.date_range = self._initialise_date_range()
+        self.supabase_client = create_client(
+            self.SUPABASE_URL,
+            self.SUPABASE_KEY,
+            ClientOptions(schema=self.SUPABASE_SCHEMA),
+        )
+
         self.date_expiry = []
         self.date_version = {}
-    
-    def _initialise_api(self) -> dict[str, str]:
-        """Define API URLs for OPW data and Telegram webhook."""
-        api_base = "https://api.data.gov.hk/v1/historical-archive"
-        source_url = (
-            "https://online-price-watch.consumer.org.hk"
-            "/opw/opendata/pricewatch.json"
-        )
-        
-        version = (
-            f"{api_base}/list-file-versions"
-            f"?url={source_url}&start={{}}&end={{}}"
-        )
-        file = f"{api_base}/get-file?url={source_url}&time={{}}"
-        
-        webhook_url = os.getenv("FORWARDING_URL")
-        bot = f"{webhook_url}/api/v1/reply"
-        
-        return {"version": version, "file": file, "bot": bot}
-    
-    def _initialise_database_client(self) -> Client:
-        """Define connection to Supabase database."""
-        url = os.getenv("SUPABASE_URL")
-        key = os.getenv("SUPABASE_KEY")
-        schema = os.getenv("SUPABASE_SCHEMA")
-        
-        client = create_client(url, key, ClientOptions(schema=schema))
-        
-        response = client.rpc("check_connection").execute()
-        if not response.data[0].get("okay"):
-            raise Exception("Failed to connect to the database.")
-        
-        return client
-    
-    def _initialise_date_range(self) -> tuple[tuple[str]]:
-        """Define date range for detching OPW data"""
-        delta = int(os.getenv("DELTA"))
-        schedule = os.getenv("SCHEDULE")
-        
-        dt_end = datetime.today() - timedelta(days=1)
-        dt_start = dt_end - timedelta(days=delta-1)
-        
-        start = dt_start.strftime("%Y%m%d")
-        end = dt_end.strftime("%Y%m%d")
-        
-        dt_backtrack = datetime.today() - timedelta(days=2)
-        self.backtrack = dt_backtrack.strftime("%Y%m%d") + f"-{schedule}"
-        
-        return (start, end), (end, end)
-    
+
+        self.df_item = pl.DataFrame()
+        self.df_price = pl.DataFrame()
+
     def _fetch_opw_versions(self) -> None:
-        """Get the available OPW versions and update date windowing."""
-        for start_end in self.date_range:
-            response = requests.get(self.api["version"].format(*start_end))
+        """Get available OPW file versions and update windowing period."""
+        versions = []
+        for length in range(0, self.DELTA, self.BATCH_VERSION):
+            end = self.DT_END - timedelta(days=length)
+            start = end - timedelta(days=9)
+            dates = start.strftime("%Y%m%d"), end.strftime("%Y%m%d")
+
+            response = requests.get(self.API_VERSION.format(*dates), timeout=20)
             response.raise_for_status()
-            
+
             data = response.json()
-            dates = data.get("data-dictionary-dates", [])
-            versions = data.get("timestamps", [])
-            
-            self.date_version.update(dict(zip(dates, versions)))
-        
+            versions += data.get("timestamps", [])
+
+        self.date_version.update(dict(
+            pl.DataFrame({"version": versions})
+            .with_columns(
+                pl.col("version").str.slice(0, 8)
+                    .str.to_date("%Y%m%d")
+                    .alias("date")
+            )
+            .with_columns(
+                (pl.col("date") - pl.duration(days=1))  # OPW data is a day delayed
+                    .dt.strftime("%Y%m%d")
+            )
+            .select("date", "version")
+            .iter_rows()
+        ))
+
         response = self.supabase_client.rpc("get_dates").execute()
-        
+
         for data in response.data:
-            if data["_date"] in self.date_version and self.date_version[data["_date"]] < self.backtrack:
+            if data["_date"] in self.date_version:
                 self.date_version.pop(data["_date"], None)
             else:
                 self.date_expiry.append(data["_date"])
-        
-        log(f"Window of {len(self.date_version)} day(s) to be updated.")
-    
+
+        logging.info(f"Window of {len(self.date_version)} day(s) to be updated.")
+
     def _download_opw_data(self) -> None:
-        """Get pending OPW data and process it into DataFrames."""
+        """Download and process pending OPW data into DataFrames."""
         prices, items = [], []
-        
+
         for date, version in self.date_version.items():
-            response = requests.get(self.api["file"].format(version))
+            response = requests.get(self.API_FILE.format(version), timeout=20)
             response.raise_for_status()
+
             data = response.json()
-            
+
             for item in data:
                 item["code"] = str(item["code"]).upper()
                 code = item["code"]
-                
+
                 price = item.pop("prices", [])
                 offer = item.pop("offers", [])
-                
+
                 # expand sub-dictionaries into a single object
                 smkt_price = {p["supermarketCode"]: p for p in price}
                 smkt_offer = {o["supermarketCode"]: o for o in offer}
-                
+
                 price = [
                     {
                         "code": code, "date": date,
@@ -140,24 +137,21 @@ class SuperPriceWatchdogPipeline:
                     }
                     for smkt in set(smkt_price) | set(smkt_offer)
                 ]
-                
+
                 prices += price
                 items.append(item)
-        
+
         self.df_item = pl.json_normalize(items).rechunk()
         self.df_price = pl.from_records(prices).rechunk()
-        
-        log(
-            f"Total of {len(items):,} raw item(s) and "
-            f"{len(prices):,} raw price(s)."
-        )
-    
+
+        logging.info(f"Total of {len(items):,} raw item(s) and {len(prices):,} raw price(s).")
+
     def _cleanse_opw_data(self) -> None:
-        """Cleanse up the OPW data based on the defined schema on database."""
+        """Cleanse OPW data to match the defined schema in the database."""
         if not self.df_item.is_empty():
             response = self.supabase_client.rpc("get_skus").execute()
             sku_list = [data["_sku"] for data in response.data]
-            
+
             cols = {
                 "code": "sku",
                 "cat1Name.en": "department_en",
@@ -171,7 +165,7 @@ class SuperPriceWatchdogPipeline:
                 "name.en": "name_en",
                 "name.zh-Hant": "name_zh",
             }
-            
+
             self.df_item = (
                 self.df_item
                 .unique(subset="code")  # keep unique SKUs
@@ -180,7 +174,7 @@ class SuperPriceWatchdogPipeline:
                 .rename(cols)
                 .rechunk()
             )
-        
+
         if not self.df_price.is_empty():
             cols = {
                 "code": "sku",
@@ -190,7 +184,7 @@ class SuperPriceWatchdogPipeline:
                 "zh-Hant": "promotion_zh",
                 "price": "original_price",
             }
-            
+
             self.df_price = (
                 self.df_price
                 .with_columns(
@@ -203,107 +197,108 @@ class SuperPriceWatchdogPipeline:
                 .rename(cols)
                 .rechunk()
             )
-        
-        log(
-            f"Total of {len(self.df_item):,} new item(s) and "
-            f"{len(self.df_price):,} new price(s)."
-        )
-    
+
+        logging.info(f"Total of {len(self.df_item):,} new item(s) and {len(self.df_price):,} new price(s).")
+
+    def _split_promotion(self, mkt_txt: str) -> list[str]:
+        """Clean and split promotion text into individual components."""
+        txt = re.sub(r"\s?wk\d+\s?", "", mkt_txt.lower().strip())
+        txt = re.sub(r"; |/|[a-z]\.[a-z]", "<sep>", txt)
+        txt = re.sub(r"half price", "50%", txt)
+        txt = re.sub(r"second", "2nd", txt)
+
+        return list(map(str.strip, txt.split("<sep>")))
+
+    def _get_pattern(self, promotion: str) -> str:
+        """Map promotional text patterns to tags for later processing."""
+        pattern_tags = {
+            r"\$\d+(\.\d+)?": "<AMT>",
+            r"\d+(\.\d+)?\%": "<PCT>",
+            r"\d+": "<CNT>",
+        }
+
+        txt = promotion.lower().strip()
+
+        for pat, tag in pattern_tags.items():
+            txt = re.sub(pat, tag, txt)
+
+        return txt
+
+    def _extract_values(self, data: dict[str, str]) -> list[float]:
+        """Extract numeric values from the promotion pattern."""
+        values = []
+        if data["category"]:
+            promotions = data["promotion"].split()
+            patterns = data["pattern"].split()
+            for promotion, pattern in zip(promotions, patterns):
+                if re.search(r"<AMT>|<CNT>|<PCT>", pattern):
+                    nums = re.findall(r"(\d+\.?\d{,2})", promotion)
+                    values += [float(num) for num in nums]
+
+        return values
+
+    def _calculate_discount(self, data: dict[str, float | list[float]]) -> float:
+        """Calculate the discounted price based on the promotion rules."""
+        price, pattern, category, values = data.values()
+        discount = price
+
+        try:
+            match category:
+                case 2:
+                    if pattern == "+<AMT> for <CNT>nd item":
+                        discount = price + values[0]
+                        discount /= values[1]
+                    elif pattern == "<AMT> for <CNT>":
+                        discount = values[0] / values[1]
+                case 4:
+                    if re.search(r"<CNT>\s.*save" , pattern):
+                        discount = price * values[0] - values[1]
+                        discount /= values[0]
+                    elif re.search(r"<CNT>\s" , pattern):
+                        discount = values[1] / values[0]
+                case 5:
+                    if re.search(r"free the most expensive one" , pattern):
+                        discount = price * (values[0] - 1)
+                        discount /= values[0]
+                    elif re.search(r"get <CNT> free" , pattern):
+                        discount = price * values[0]
+                        discount /= values[0] + values[1]
+                case 6:
+                    if re.search(r"<CNT>\w" , pattern):
+                        discount = price * (values[0] - 1) \
+                            + price * (1 - values[1] / 100)
+                        discount /= values[0]
+                    else:
+                        discount = price * values[0] * (1 - values[1] / 100)
+                        discount /= values[0]
+                case 8:
+                    if re.search(r"<CNT>\w" , pattern):
+                        discount = price * (1 - values[0] / 100) \
+                            + price * (values[1] - 1)
+                        discount /= values[1]
+                    else:
+                        discount = price * (1 - values[0] / 100)
+                case _:
+                    discount = price
+        except Exception:
+            pass
+
+        return discount if price * self.DISCOUNT_THRESHOLD < discount else price
+
     def _analyse_promotion(self) -> None:
         """Categorise promotions and calculate unit prices."""
-        def split_promotion(mkt_txt: str) -> list[str]:
-            txt = re.sub(r"\s?wk\d+\s?", "", mkt_txt.lower().strip())
-            txt = re.sub(r"; |/|[a-z]\.[a-z]", "<sep>", txt)
-            txt = re.sub(r"half price", "50%", txt)
-            txt = re.sub(r"second", "2nd", txt)
-            
-            return list(map(str.strip, txt.split("<sep>")))
-        
-        def get_pattern(promotion: str) -> str:
-            pattern_tags = {
-                r"\$\d+(\.\d+)?": "<AMT>",
-                r"\d+(\.\d+)?\%": "<PCT>",
-                r"\d+": "<CNT>",
-            }
-            
-            txt = promotion.lower().strip()
-            
-            for pat, tag in pattern_tags.items():
-                txt = re.sub(pat, tag, txt)
-            
-            return txt
-        
-        def extract_values(data: dict[str, str]) -> list[float]:
-            values = []
-            if data["category"]:
-                promotions = data["promotion"].split()
-                patterns = data["pattern"].split()
-                for promotion, pattern in zip(promotions, patterns):
-                    if re.search(r"<AMT>|<CNT>|<PCT>", pattern):
-                        nums = re.findall(r"(\d+\.?\d{,2})", promotion)
-                        values += [float(num) for num in nums]
-            
-            return values
-        
-        def calculate_discount(data: dict[str, float | list[float]]) -> float:
-            price, pattern, category, values = data.values()
-            discount = price
-            
-            try:
-                match category:
-                    case 2:
-                        if pattern == "+<AMT> for <CNT>nd item":
-                            discount = price + values[0]
-                            discount /= values[1]
-                        elif pattern == "<AMT> for <CNT>":
-                            discount = values[0] / values[1]
-                    case 4:
-                        if re.search("<CNT>\s.*save" , pattern):
-                            discount = price * values[0] - values[1]
-                            discount /= values[0]
-                        elif re.search("<CNT>\s" , pattern):
-                            discount = values[1] / values[0]
-                    case 5:
-                        if re.search("free the most expensive one" , pattern):
-                            discount = price * (values[0] - 1)
-                            discount /= values[0]
-                        elif re.search("get <CNT> free" , pattern):
-                            discount = price * values[0]
-                            discount /= values[0] + values[1]
-                    case 6:
-                        if re.search("<CNT>\w" , pattern):
-                            discount = price * (values[0] - 1) \
-                                + price * (1 - values[1] / 100)
-                            discount /= values[0]
-                        else:
-                            discount = price * values[0] * (1 - values[1] / 100)
-                            discount /= values[0]
-                    case 8:
-                        if re.search("<CNT>\w" , pattern):
-                            discount = price * (1 - values[0] / 100) \
-                                + price * (values[1] - 1)
-                            discount /= values[1]
-                        else:
-                            discount = price * (1 - values[0] / 100)
-                    case _:
-                        discount = price
-            except Exception:
-                pass
-            
-            return discount if price * .3 < discount else price
-        
         if not self.df_price.is_empty():
             self.df_price = (
                 self.df_price
                 .with_columns(
                     pl.col("promotion_en")
-                        .map_elements(split_promotion, return_dtype=list[str])
+                        .map_elements(self._split_promotion, return_dtype=list[str])
                         .alias("promotion"),  # split description with multiple promotions
                 )
                 .explode("promotion")  # expand row per promotion
                 .with_columns(
                     pl.col("promotion")
-                        .map_elements(get_pattern, return_dtype=str)
+                        .map_elements(self._get_pattern, return_dtype=str)
                         .alias("pattern"),  # get <AMT>, <CNT> and <PCT> as pattern
                 )
                 .with_columns(
@@ -371,12 +366,12 @@ class SuperPriceWatchdogPipeline:
                 )
                 .with_columns(
                     pl.struct("promotion", "pattern", "category")
-                        .map_elements(extract_values, return_dtype=list[float])
+                        .map_elements(self._extract_values, return_dtype=list[float])
                         .alias("value"),  # get numeric values according to pattern
                 )
                 .with_columns(
                     pl.struct("original_price", "pattern", "category", "value")
-                        .map_elements(calculate_discount, return_dtype=float)
+                        .map_elements(self._calculate_discount, return_dtype=float)
                         .alias("unit_price"),  # calculate price based on defined rules
                 )
                 .sort(["sku", "effective_date", "supermarket", "unit_price"])
@@ -387,70 +382,95 @@ class SuperPriceWatchdogPipeline:
                 ])
                 .rechunk()
             )
-            
+
             cnt = (
                 self.df_price
                 .filter(pl.col("original_price") != pl.col("unit_price"))
                 .shape[0]
             )
-            
-            log(f"Total of {cnt:,} price(s) got discounted.")
-    
+
+            logging.info(f"Total of {cnt:,} price(s) got discounted.")
+
+    def _insert_record(self, table: str, df: pl.DataFrame) -> None:
+        """Insert records into the specified table."""
+        data = df.write_json()
+        data = json.loads(data)
+
+        for i in range(0, len(data), self.BATCH_INSERT):
+            self.supabase_client.table(table) \
+                .insert(data[i:i+self.BATCH_INSERT]) \
+                .execute()
+
     def _update_database(self) -> None:
-        """Insert OPW data to the database and execute ETL job."""
-        def insert_record(
-            table: str, df: pl.DataFrame, batch_size: int=10_000,
-        ) -> None:
-            data = df.write_json()
-            data = json.loads(data)
-            
-            for i in range(0, len(data), batch_size):
-                self.supabase_client.table(table) \
-                    .insert(data[i:i+batch_size]) \
-                    .execute()
-        
-        insert_record("items", self.df_item)
-        
+        """Insert data into the database and execute necessary updates."""
+        self._insert_record("items", self.df_item)
+
         self.supabase_client.table("prices") \
             .delete().in_("effective_date", self.date_expiry) \
             .execute()
-        
-        insert_record("prices", self.df_price)
-        
-        # self.supabase_client.rpc("remove_prices", {"delta": self.delta}).execute()
-        
+
+        self._insert_record("prices", self.df_price)
+
         self.supabase_client.rpc("update_deals").execute()
-        
-        log("Updated the database.")
-    
+
+        logging.info("Updated the database.")
+
     def _send_price_alert(self) -> None:
-        """Post alert requests to Telegram webhook."""
-        if datetime.today().weekday() != 4:  # skip the first day of promotion week
+        """Send price alert notification to users via webhook."""
+        if datetime.now(self.HKT).isocalendar().weekday not in [5, 6]:  # skip the first 2 days of promotion week
             response = self.supabase_client.rpc("get_users").execute()
-            
+
             for data in response.data:
-                data = {
-                    "message": {
-                        "from": {
-                            "id": data["_id"],
-                        },
-                        "text": "/alert",
+                params = {
+                    "url": self.API_BOT,
+                    "json": {
+                        "message": {
+                            "from": {
+                                "id": data["_id"],
+                            },
+                            "text": "/alert",
+                        }
                     }
                 }
-                
-                requests.post(self.api["bot"], json=data)
-            
-            log(f"Blasted price alert(s) to {len(response.data)} user(s).")
+
+                requests.post(**params, timeout=30)
+
+            logging.info(f"Blasted price alert(s) to {len(response.data)} user(s).")
         else:
-            log("No price alerts for Friday.")
-    
+            logging.info("No price alerts for Friday and Saturday.")
+
+    def _push_error_notification(self, msg: str) -> None:
+        """Send error notification to the developer via Telegram webhook."""
+        try:
+            params = {
+                "url": self.API_BOT,
+                "json": {
+                    "message": {
+                        "from": {
+                            "id": self.DEVELOPER_ID,
+                        },
+                        "text": "/error",
+                    }
+                }
+            }
+
+            requests.post(**params, timeout=30)
+
+            logging.error(f"Notified the developer for the broken pipeline: {msg}")
+        except Exception as e:
+            logging.error(f"Failed to notify the developer the the broken pipeline: (1){msg} (2) {e}")
+
     def watch(self) -> None:
-        self._fetch_opw_versions()
-        self._download_opw_data()
-        self._cleanse_opw_data()
-        self._analyse_promotion()
-        self._update_database()
-        self._send_price_alert()
+        """Execute the pipeline."""
+        try:
+            self._fetch_opw_versions()
+            self._download_opw_data()
+            self._cleanse_opw_data()
+            self._analyse_promotion()
+            self._update_database()
+            self._send_price_alert()
+        except Exception as e:
+            self._push_error_notification(e)
 
 
 if __name__ == "__main__":

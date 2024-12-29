@@ -124,11 +124,12 @@ $$ LANGUAGE plpgsql;
 
 
 /* GET N RANDOM DEAL ITEMS */
-CREATE OR REPLACE FUNCTION watchdog.get_random_deals(usr_id TEXT, n INT DEFAULT 5)
+CREATE OR REPLACE FUNCTION watchdog.draw_deals(usr_id TEXT, n INT DEFAULT 5)
     RETURNS TABLE(
         _sku VARCHAR
         , _supermarket VARCHAR
         , _promotion TEXT
+        , _fix NUMERIC
         , _price NUMERIC
         , _frequency INT
         , _average NUMERIC
@@ -152,6 +153,7 @@ BEGIN
         d.sku
         , d.supermarket
         , CASE WHEN l.display_language = 'en' THEN d.promotion_en ELSE d.promotion_zh END
+        , d.original_price
         , d.unit_price
         , d.frequency
         , d.average_price

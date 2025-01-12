@@ -60,7 +60,6 @@ BEGIN
                 , AVG(unit_price) AS average_price
                 , STDDEV(unit_price) AS std_price
                 , MIN(unit_price) AS q0_price
-                , PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY unit_price) AS q1_price
                 , MAX(unit_price) AS q4_price
             FROM prices
             GROUP BY sku
@@ -75,7 +74,6 @@ BEGIN
                 , p.unit_price
                 , s.preference
             FROM prices p
-            
             LEFT JOIN supermarkets s ON p.supermarket = s.supermarket
             WHERE p.effective_date = latest_date
         )
@@ -90,24 +88,56 @@ BEGIN
                 , RANK() OVER (PARTITION BY sku ORDER BY unit_price, preference) AS rnk
             FROM t_latest_deal
         )
+        , t_price_summary AS (
+            SELECT
+                d.sku
+                , d.supermarket
+                , d.promotion_en
+                , d.promotion_zh
+                , d.original_price
+                , d.unit_price
+                , s.frequency
+                , s.average_price
+                , s.std_price
+                , s.q0_price
+                , -1 * (s.std_price + 0.0001) + s.average_price AS unadjusted_bid
+                , s.q4_price
+            FROM t_preferred_deal d
+            INNER JOIN t_summary_statistic s ON d.sku = s.sku
+            WHERE d.rnk = 1
+        )
+        , t_price_adjustment AS (
+            SELECT
+                sku
+                , supermarket
+                , promotion_en
+                , promotion_zh
+                , original_price
+                , unit_price
+                , frequency
+                , average_price
+                , std_price
+                , q0_price
+                , CASE WHEN unadjusted_bid < q0_price THEN q0_price ELSE unadjusted_bid END AS bid_price
+                , q4_price
+            FROM t_price_summary
+        )
     INSERT INTO deals
     SELECT
-        d.sku
-        , d.supermarket
-        , d.promotion_en
-        , d.promotion_zh
-        , d.original_price
-        , d.unit_price
-        , s.frequency
-        , s.average_price
-        , s.std_price
-        , s.q0_price
-        , s.q1_price
-        , s.q4_price
-        , CASE WHEN d.unit_price + 0.5 < s.q1_price THEN 'y' ELSE 'n' END
-    FROM t_preferred_deal d
-    INNER JOIN t_summary_statistic s ON d.sku = s.sku
-    WHERE d.rnk = 1;
+        sku
+        , supermarket
+        , promotion_en
+        , promotion_zh
+        , original_price
+        , unit_price
+        , frequency
+        , average_price
+        , std_price
+        , q0_price
+        , bid_price
+        , q4_price
+        , CASE WHEN unit_price <= bid_price THEN 'y' ELSE 'n' END AS is_deal
+    FROM t_price_adjustment;
 END;
 $$ LANGUAGE plpgsql;
 

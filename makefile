@@ -8,6 +8,7 @@ clone:
 
 config:
 	cp SuperPriceWatchdog/config/.env.example SuperPriceWatchdog/config/.env
+	curl -L -o SuperPriceWatchdog/config/NotoSansCJK-Bold.ttc https://github.com/notofonts/noto-cjk/raw/refs/heads/main/Sans/OTC/NotoSansCJK-Bold.ttc
 
 post-merge:
 	echo "#!/bin/sh" > SuperPriceWatchdog/.git/hooks/post-merge

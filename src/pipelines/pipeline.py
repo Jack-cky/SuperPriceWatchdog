@@ -458,7 +458,7 @@ class SuperPriceWatchdogPipeline(Config):
 
             logging.error(f"Notified the developer for the broken pipeline: {msg}")
         except Exception as e:
-            logging.error(f"Failed to notify the developer the the broken pipeline: (1){msg} (2) {e}")
+            logging.error(f"Failed to notify the developer the the broken pipeline: (1) {msg} (2) {e}")
 
     def watch(self) -> None:
         """Execute the pipeline."""

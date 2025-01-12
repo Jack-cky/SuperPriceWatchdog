@@ -11,7 +11,7 @@
 While it is possible to track these fluctuations manually, such an approach can be both time-consuming and exhausting. To alleviate this burden, we are pleased to introduce SuperPriceWatchdog, a tool designed to help you monitor supermarket prices effectively.
 
 **First Published:** 15 February 2024  
-**Last Updated:** 29 December 2024
+**Last Updated:** 12 January 2025
 
 
 <!-- ROADMAP -->
@@ -63,7 +63,7 @@ Simply drop a message to [@SuperPriceWatchdog](https://t.me/SuperPriceWatchdogBo
 <a name="2.2"></a>
 
 ### Price Alert Design
-SuperPriceWatchdog collects 90 days of price records and calculates statistics for each item. When the unit price (after promotion) is below the first quartile, that item is considered a best deal. The price monitoring is entirely automated and requires minimal effort. Unlike the official price alerts, users are required to set a target price manually or adjust it based on intuition.
+SuperPriceWatchdog collects 90 days of price records and calculates statistics for each item. When the standardised unit price (after promotion) is below one standard deviation from its mean, i.e., $Pr(Z \leq -1)$, that item is considered a best deal. The price monitoring is entirely automated and requires minimal effort. Unlike the official price alerts, users are required to set a target price manually or adjust it based on intuition.
 
 Promotion weeks start on Fridays, meaning most prices are refreshed every Friday (based on my past experience as a Red Label Supermarket employee). Unfortunately, the latest record of Online Price Watch (OPW) data refers to prices and promotions from two days before, which means the prices in our database may not reflect the most current prices. To avoid false alerts, price alerts are set to be disabled on Fridays and Saturdays.
 
@@ -117,7 +117,24 @@ Your feedback, suggestions, and support can significantly improve our features a
 ## Changelog
 <details>
   <summary>[2.0.0] Revamped Version</summary>
-  [2.0.2] 2024-12-29<br>
+  [2.0.3] 2025-01-12<br>
+  Enhanced script structure and product features.
+  <h4>Added</h4>
+  <ul>
+    <li>Dockerfiles for containerisation.</li>
+    <li>Special offer message in price alert.</li>
+  </ul>
+  <h4>Changed</h4>
+  <ul>
+    <li>Aligned font of the price trend graph to NotoSansCJK-Bold in all environment.</li>
+    <li>Modularised bot functions into classes for better maintainability.</li>
+    <li>Updated the price alert logic from using the first quartile to normal standardisation because some items have a skewed price distribution.</li>
+  </ul>
+  <h4>Fixed</h4>
+  <ul>
+    <li>Date labels in the price trend are overlapping. Removed year labels from the y-axis of the plot.</li>
+  </ul>
+  <hr>[2.0.2] 2024-12-29<br>
   Enhance project structure and error handling.
   <h4>Added</h4>
   <ul>

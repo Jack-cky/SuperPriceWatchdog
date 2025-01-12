@@ -69,7 +69,7 @@ BEGIN
         , average_price NUMERIC
         , std_price NUMERIC
         , q0_price NUMERIC
-        , q1_price NUMERIC
+        , bid_price NUMERIC
         , q4_price NUMERIC
         , is_deal VARCHAR(1)
         , created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

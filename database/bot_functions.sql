@@ -192,7 +192,7 @@ $$ LANGUAGE plpgsql;
 
 /* GET ITEM INFORMATION */
 CREATE OR REPLACE FUNCTION watchdog.get_item(usr_id TEXT, code VARCHAR)
-    RETURNS TABLE(_frequency INT, _q1 NUMERIC, _brand TEXT, _name TEXT)
+    RETURNS TABLE(_frequency INT, _bid NUMERIC, _brand TEXT, _name TEXT)
     SET search_path = 'watchdog'
 AS $$
 BEGIN
@@ -214,7 +214,7 @@ BEGIN
         )
     SELECT
         d.frequency
-        , d.q1_price
+        , d.bid_price
         , i.item_brand
         , i.item_name
     FROM deals d

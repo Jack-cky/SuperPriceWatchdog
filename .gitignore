@@ -4,8 +4,9 @@ archive/
 data/
 imgs/bot/
 imgs/sources/
+logs/
 .DS_Store
 .env
-00_drafts.ipynb
+.pytest_cache
 cheatsheet.sh
 NotoSansCJK-Bold.ttc

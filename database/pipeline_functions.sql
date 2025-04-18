@@ -49,9 +49,9 @@ BEGIN
     SELECT MAX(effective_date)
     INTO latest_date
     FROM prices;
-    
+
     TRUNCATE TABLE deals;
-    
+
     WITH
         t_summary_statistic AS (
             SELECT
@@ -160,5 +160,17 @@ BEGIN
     WHERE 1 = 1
         AND u.is_subscribed = 'y'
         AND EXISTS (SELECT 1 FROM t_identity i WHERE u.user_id = i.user_id);
+END;
+$$ LANGUAGE plpgsql;
+
+
+/* LOG OMISSION DATE */
+CREATE OR REPLACE FUNCTION watchdog.log_omission()
+    RETURNS VOID
+    SET search_path = 'watchdog'
+AS $$
+BEGIN
+    INSERT INTO omissions (omission_date)
+        VALUES (TO_CHAR(CURRENT_DATE, 'YYYYMMDD'));
 END;
 $$ LANGUAGE plpgsql;

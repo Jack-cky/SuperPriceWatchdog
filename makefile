@@ -1,4 +1,4 @@
-.PHONY: clone config init install post-merge
+.PHONY: install clone config post-merge setup
 
 install:
 	pip install -r requirements.txt
@@ -15,4 +15,4 @@ post-merge:
 	echo "touch /var/www/superpricewatchdog_pythonanywhere_com_wsgi.py" >> SuperPriceWatchdog/.git/hooks/post-merge
 	chmod +x SuperPriceWatchdog/.git/hooks/post-merge
 
-init: install clone config post-merge
+setup: install clone config post-merge

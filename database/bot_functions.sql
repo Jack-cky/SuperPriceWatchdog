@@ -9,7 +9,7 @@ DECLARE
 BEGIN
     SELECT EXISTS (SELECT 1 FROM users WHERE user_id = usr_id)
     INTO is_exist;
-    
+
     IF is_exist THEN
         RETURN QUERY
         SELECT
@@ -23,7 +23,7 @@ BEGIN
         
         INSERT INTO users (user_id, display_language, is_subscribed)
             VALUES (usr_id, language_code, 'n');
-        
+
         RETURN QUERY
         SELECT
             language_code
@@ -67,13 +67,13 @@ BEGIN
     INTO language_code, is_exist, is_valid
     FROM users
     WHERE user_id = usr_id;
-    
+
     IF is_valid AND is_exist THEN
         DELETE FROM watchlists
         WHERE 1 = 1
             AND user_id = usr_id
             AND sku = code;
-        
+
         RETURN QUERY
         SELECT
             language_code
@@ -82,7 +82,7 @@ BEGIN
     ELSEIF is_valid AND NOT is_exist THEN
         INSERT INTO watchlists (user_id, sku)
             VALUES (usr_id, code);
-        
+
         RETURN QUERY
         SELECT
             language_code
@@ -311,7 +311,7 @@ AS $$
 BEGIN
     DELETE FROM watchlists
     WHERE user_id = usr_id;
-    
+
     RETURN QUERY
     WITH
         t_information AS (

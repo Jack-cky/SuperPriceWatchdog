@@ -3,7 +3,7 @@ services:
     build:
       context: ..
       dockerfile: ./docker/bots/Dockerfile
-    image: jackcky/spwd-bot
+    image: jackcky/superpricewatchdog-bot
     ports:
       - "5000:5000"
 
@@ -11,4 +11,4 @@ services:
     build:
       context: ..
       dockerfile: ./docker/pipelines/Dockerfile
-    image: jackcky/spwd-pipeline
+    image: jackcky/superpricewatchdog-pipeline

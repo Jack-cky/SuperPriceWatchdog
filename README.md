@@ -11,7 +11,7 @@
 While it is possible to track these fluctuations manually, such an approach can be both time-consuming and exhausting. To alleviate this burden, we are pleased to introduce SuperPriceWatchdog, a tool designed to help you monitor supermarket prices effectively.
 
 **First Published:** 15 February 2024  
-**Last Updated:** 18 April 2025
+**Last Updated:** 04 May 2025
 
 
 <!-- ROADMAP -->
@@ -54,7 +54,10 @@ Simply drop a message to [@SuperPriceWatchdog](https://t.me/SuperPriceWatchdogBo
 > Latency is expected because SuperPriceWatchdog relies on community servers.
 
 > [!WARNING]  
-> Prices shown are not current; they are from two days ago. If there are missing records for a particular day, no alert will be sent out.
+> Prices shown are not current; they are from two days ago.
+
+> [!IMPORTANT]  
+> No alert will be sent out when the API call from DATA.GOV.HK does not work properly, such as when the date is missing. See [KNOWN_ISSUES](./KNOWN_ISSUES.md) for details.
 
 <div align="center">
   <a href="https://t.me/SuperPriceWatchdogBot"><img src="./imgs/demo.png" width="40%"></a>

@@ -2,6 +2,15 @@
 
 ## [2.0.0] PILOT Stage
 
+### [2.1.2] - 2025-05-04
+Handled scenario when the data API return unexpectedly.
+### Added
+### Changed
+- Reordered the functions in makefile.
+### Fixed
+- Deduplicate data versions when fetching data in batch.
+- Pirce alert would only be sent out when the latest data is retrieved.
+
 ### [2.1.1] - 2025-04-18
 Orchestrated pipeline and modularised webhook application.
 ### Added
@@ -29,7 +38,7 @@ Enhanced script structure and product features.
 - Date labels in the price trend are overlapping. Removed year labels from the y-axis of the plot.
 
 ### [2.0.2] - 2024-12-29
-Enhance project structure and error handling.
+Enhanced project structure and error handling.
 ### Added
 - Code of conduct for project collaboration.
 - Error handling in the pipeline and bot.

@@ -45,6 +45,7 @@ class OpwVersions(luigi.Task):
     """Get available OPW file versions and windowing period."""
     api = CONFIG.get("API", "VERSION")
 
+    today = datetime.now(pytz.timezone(CONFIG.get("TIME", "TIMEZONE")))
     batch = CONFIG.getint("TASK", "BATCH")
     delta = CONFIG.getint("TASK", "DELTA")
 
@@ -73,9 +74,9 @@ class OpwVersions(luigi.Task):
         )
 
     def _fetch_latest_records(self) -> dict:
-        versions = []
-        for length in range(0, self.delta, self.batch):
-            end = datetime.today() - timedelta(days=1+length)
+        versions = set()
+        for delta in range(0, self.delta, self.batch):
+            end = self.today - timedelta(days=1+delta)
             start = end - timedelta(days=self.batch-1)
             dates = start.strftime("%Y%m%d"), end.strftime("%Y%m%d")
 
@@ -83,10 +84,10 @@ class OpwVersions(luigi.Task):
             response.raise_for_status()
 
             date = response.json()
-            versions += date.get("timestamps", [])
+            versions.update(date.get("timestamps", []))
 
         return dict(
-            pl.DataFrame({"version": versions})
+            pl.DataFrame({"version": list(versions)})
             .with_columns(
                 pl.col("version").str.slice(0, 8)
                     .str.to_date("%Y%m%d")
@@ -565,6 +566,7 @@ class DailyPriceAlert(luigi.Task):
     api = CONFIG.get("API", "BOT").format(os.getenv("FORWARDING_URL"))
 
     _now = datetime.now(pytz.timezone(CONFIG.get("TIME", "TIMEZONE")))
+    latest = (_now - timedelta(days=2)).strftime("%Y%m%d")
     wkday = _now.isocalendar().weekday
 
     _target = _now.replace(
@@ -594,7 +596,7 @@ class DailyPriceAlert(luigi.Task):
             data = json.load(f)
 
         n_users = 0
-        if data["version"]:
+        if self.latest in data["version"]:  # ensure `deal` is up to date
             if self.wkday not in [5, 6]:  # skip the first 2 days of promotion week
                 time.sleep(self.wait)  # only send alerts at a specific time
                 n_users += self._blast_alerts()

@@ -46,7 +46,7 @@ class OpwVersions(luigi.Task):
     api = CONFIG.get("API", "VERSION")
 
     today = datetime.now(pytz.timezone(CONFIG.get("TIME", "TIMEZONE")))
-    batch = CONFIG.getint("TASK", "BATCH")
+    latest = (today - timedelta(days=2)).strftime("%Y%m%d")
     delta = CONFIG.getint("TASK", "DELTA")
 
     supabase_client = create_client(
@@ -69,25 +69,23 @@ class OpwVersions(luigi.Task):
             json.dump(data, f)
 
         LOGGER.info(
-            f"\t- Outstanding date(s): {data['version']}\n"
+            f"\t- Outstanding date(s): {data['version'].keys()}\n"
             f"\t- Expiring date(s): {data['expiry']}"
         )
 
     def _fetch_latest_records(self) -> dict:
-        versions = set()
-        for delta in range(0, self.delta, self.batch):
-            end = self.today - timedelta(days=1+delta)
-            start = end - timedelta(days=self.batch-1)
-            dates = start.strftime("%Y%m%d"), end.strftime("%Y%m%d")
+        end = self.today - timedelta(days=1)
+        start = end - timedelta(days=self.delta-1)
+        dates = start.strftime("%Y%m%d"), end.strftime("%Y%m%d")
 
-            response = requests.get(self.api.format(*dates), timeout=20)
-            response.raise_for_status()
+        response = requests.get(self.api.format(*dates), timeout=20)
+        response.raise_for_status()
 
-            date = response.json()
-            versions.update(date.get("timestamps", []))
+        date = response.json()
+        versions = date.get("timestamps", [])
 
         return dict(
-            pl.DataFrame({"version": list(versions)})
+            pl.DataFrame({"version": versions})
             .with_columns(
                 pl.col("version").str.slice(0, 8)
                     .str.to_date("%Y%m%d")
@@ -117,6 +115,9 @@ class OpwVersions(luigi.Task):
                 date_version.pop(date, None)
             else:
                 date_expiry.append(date)
+
+        if self.latest not in date_version:  # ensure latest version is available
+            date_version = {}
 
         return {"version": date_version, "expiry": date_expiry}
 
@@ -566,7 +567,6 @@ class DailyPriceAlert(luigi.Task):
     api = CONFIG.get("API", "BOT").format(os.getenv("FORWARDING_URL"))
 
     _now = datetime.now(pytz.timezone(CONFIG.get("TIME", "TIMEZONE")))
-    latest = (_now - timedelta(days=2)).strftime("%Y%m%d")
     wkday = _now.isocalendar().weekday
 
     _target = _now.replace(
@@ -596,7 +596,7 @@ class DailyPriceAlert(luigi.Task):
             data = json.load(f)
 
         n_users = 0
-        if self.latest in data["version"]:  # ensure `deal` is up to date
+        if data["version"]:
             if self.wkday not in [5, 6]:  # skip the first 2 days of promotion week
                 time.sleep(self.wait)  # only send alerts at a specific time
                 n_users += self._blast_alerts()

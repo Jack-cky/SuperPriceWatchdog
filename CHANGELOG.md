@@ -2,6 +2,14 @@
 
 ## [2.0.0] PILOT Stage
 
+### [2.1.3] - 2025-05-16
+Modified pipeline to avoid problematic upstream data.
+### Added
+### Changed
+- Changed API subdomain from 'api' to 'app' for a more reliable data source.
+- Modified the pipeline only loads data if the latest data is available.
+### Fixed
+
 ### [2.1.2] - 2025-05-04
 Handled scenario when the data API return unexpectedly.
 ### Added

@@ -2,6 +2,23 @@
 
 ## [2.0.0] PILOT Stage
 
+### [2.2.1] - 2025-06-22
+Integrated the pipeline into the web application.
+### Added
+- Added a Docker ignore file.
+- Added a robots.txt file to prevent web crawling.
+- Added custom error pages for 404 and 500 errors.
+- Created a web route for the pipeline.
+### Changed
+- Changed the API subdomain back to 'app' due to unsupported configurations on PythonAnywhere.
+- Configured the web application to run using Gunicorn.
+- Consolidated multiple Docker files into a single file.
+- Packaged `superpricewatchdog` as a library.
+- Separated CSS from the index HTML file.
+- Updated environment variable names for consistency.
+- Updated solution design images.
+### Fixed
+
 ### [2.1.3] - 2025-05-16
 Modified pipeline to avoid problematic upstream data.
 ### Added

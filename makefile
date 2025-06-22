@@ -5,6 +5,7 @@ clone:
 
 install:
 	pip install -r SuperPriceWatchdog/requirements.txt
+	pip install -e SuperPriceWatchdog/ --use-pep517 --no-deps
 
 config:
 	cp SuperPriceWatchdog/config/.env.example SuperPriceWatchdog/config/.env

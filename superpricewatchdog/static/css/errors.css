@@ -1,0 +1,44 @@
+body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  margin: 0;
+  font-family: Arial, sans-serif;
+  color: #333;
+  background: #f8f9fa;
+  text-align: center;
+}
+
+h1 {
+  font-size: 5em;
+  margin-bottom: 0;
+}
+
+h1.error-404 {
+  color: #e74c3c;
+}
+
+h1.error-500 {
+  color: #e67e22;
+}
+
+h2 {
+  margin-top: 0;
+  font-size: 2em;
+}
+
+a {
+  color: #3498db;
+  text-decoration: none;
+  font-weight: bold;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+p {
+  margin: 0.5em 0;
+}

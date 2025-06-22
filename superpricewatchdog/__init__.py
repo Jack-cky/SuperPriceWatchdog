@@ -8,9 +8,12 @@ from supabase import create_client
 from supabase.client import ClientOptions
 
 from .config import Config
+from .routes.error import bp as bp_errors
 from .routes.index import bp as bp_index
+from .routes.pipeline import bp as bp_pipeline
 from .routes.response import bp as bp_response
 from .routes.repository import bp as bp_repository
+from .routes.robots import bp as bp_robots
 
 
 def create_app():
@@ -30,9 +33,12 @@ def create_app():
         ClientOptions(schema=app.config["SUPABASE_SCHEMA"]),
     )
 
+    app.register_blueprint(bp_errors)
     app.register_blueprint(bp_index)
-    app.register_blueprint(bp_response)
+    app.register_blueprint(bp_pipeline)
     app.register_blueprint(bp_repository)
+    app.register_blueprint(bp_response)
+    app.register_blueprint(bp_robots)
 
     requests.get(app.config["API_WEBHOOK"], timeout=30)
 

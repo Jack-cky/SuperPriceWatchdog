@@ -6,8 +6,8 @@ docs/
 imgs/bot/
 imgs/sources/
 logs/
+superpricewatchdog.egg-info/
 .DS_Store
 .env
 .pytest_cache
-cheatsheet.sh
 NotoSansCJK-Bold.ttc

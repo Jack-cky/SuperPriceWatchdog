@@ -1,60 +1,23 @@
-"""
-SuperPriceWatchdog Pipeline for monitoring price changes using Open Price Watch
-(OPW) data. This pipeline implements an ETLT (Extract, Transform, Load,
-Transform) process to manage price data and alert users of any price changes.
-The pipeline is designed to run daily, downloading price data, cleansing it,
-and updating a database with new prices and items.
-"""
-import configparser
 import json
 import logging
 import os
 import re
 import time
 from datetime import datetime, timedelta
-from pathlib import Path
 
 import luigi
 import polars as pl
-import pytz
 import requests
-from dotenv import load_dotenv
-from supabase import create_client
-from supabase.client import ClientOptions
+from flask import Blueprint, current_app, request
+
+from ..config import PTH, LOGGER
 
 
-PTH = Path(os.path.dirname(__file__).split(os.sep)[-2])
-PTH = [PTH, os.sep/PTH][not os.path.isdir(PTH / "config")]
-
-load_dotenv(PTH / "config" / ".env")
-
-CONFIG = configparser.ConfigParser()
-CONFIG.read(PTH / "config" / "config.ini")
-
-for config in [
-    ("worker", "keep-alive", "True"),
-    ("scheduler", "retry_delay", CONFIG.get("SCHEDULER", "RETRY_DELAY")),
-    ("scheduler", "retry_count", CONFIG.get("SCHEDULER", "RETRY_COUNT")),
-]:
-    luigi.configuration.get_config().set(*config)
-
-LOGGER = logging.getLogger("luigi-interface")
+bp = Blueprint("pipeline", __name__)
 
 
 class OpwVersions(luigi.Task):
     """Get available OPW file versions and windowing period."""
-    api = CONFIG.get("API", "VERSION")
-
-    today = datetime.now(pytz.timezone(CONFIG.get("TIME", "TIMEZONE")))
-    latest = (today - timedelta(days=2)).strftime("%Y%m%d")
-    delta = CONFIG.getint("TASK", "DELTA")
-
-    supabase_client = create_client(
-        os.getenv("SUPABASE_URL"),
-        os.getenv("SUPABASE_KEY"),
-        ClientOptions(schema=CONFIG.get("DATABASE", "SCHEMA")),
-    )
-
     def output(self):
         return luigi.LocalTarget(PTH / "data" / "opw_version.json")
 
@@ -74,11 +37,14 @@ class OpwVersions(luigi.Task):
         )
 
     def _fetch_latest_records(self) -> dict:
-        end = self.today - timedelta(days=1)
-        start = end - timedelta(days=self.delta-1)
+        end = datetime.now(current_app.hkt) - timedelta(days=1)
+        start = end - timedelta(days=current_app.config["DELTA"]-1)
         dates = start.strftime("%Y%m%d"), end.strftime("%Y%m%d")
 
-        response = requests.get(self.api.format(*dates), timeout=20)
+        response = requests.get(
+            current_app.config["API_VERSION"].format(*dates),
+            timeout=20,
+        )
         response.raise_for_status()
 
         date = response.json()
@@ -99,16 +65,16 @@ class OpwVersions(luigi.Task):
             .iter_rows()
         )
 
-    def _get_existing_records(self) -> list:
-        response = self.supabase_client.rpc("get_dates").execute()
+    def _get_existing_records(self) -> list[str]:
+        response = current_app.supabase_client.rpc("get_dates").execute()
 
         return [data["_date"] for data in response.data]
 
     def _update_windows(
-            self,
-            date_version,
-            existing_dates,
-    ) -> dict[str, dict[str, str]|list]:
+        self,
+        date_version,
+        existing_dates,
+    ) -> dict[str, dict[str, str] | list]:
         date_expiry = []
         for date in existing_dates:
             if date in date_version:
@@ -116,7 +82,8 @@ class OpwVersions(luigi.Task):
             else:
                 date_expiry.append(date)
 
-        if self.latest not in date_version:  # ensure latest version is available
+        latest = datetime.now(current_app.hkt) - timedelta(days=2)
+        if latest.strftime("%Y%m%d") not in date_version:  # ensure latest version is available
             date_version = {}
 
         return {"version": date_version, "expiry": date_expiry}
@@ -124,8 +91,6 @@ class OpwVersions(luigi.Task):
 
 class OpwDownloader(luigi.Task):
     """Download OPW data and convert data to DataFrames."""
-    api = CONFIG.get("API", "FILE")
-
     def requires(self):
         return OpwVersions()
 
@@ -154,12 +119,15 @@ class OpwDownloader(luigi.Task):
         )
 
     def _download_records(
-            self,
-            date_version,
+        self,
+        date_version,
     ) -> tuple[pl.DataFrame, pl.DataFrame]:
         prices, items = [], []
         for date, version in date_version.items():
-            response = requests.get(self.api.format(version), timeout=20)
+            response = requests.get(
+                current_app.config["API_FILE"].format(version),
+                timeout=20,
+            )
             response.raise_for_status()
 
             data = response.json()
@@ -178,7 +146,8 @@ class OpwDownloader(luigi.Task):
                 price = [
                     {
                         "code": code, "date": date,
-                        **smkt_price.get(smkt, {}), **smkt_offer.get(smkt, {}),
+                        **smkt_price.get(smkt, {}),
+                        **smkt_offer.get(smkt, {}),
                     }
                     for smkt in set(smkt_price) | set(smkt_offer)
                 ]
@@ -191,12 +160,6 @@ class OpwDownloader(luigi.Task):
 
 class OpwCleanser(luigi.Task):
     """Cleanse OPW data to match the defined schema in the database."""
-    supabase_client = create_client(
-        os.getenv("SUPABASE_URL"),
-        os.getenv("SUPABASE_KEY"),
-        ClientOptions(schema=CONFIG.get("DATABASE", "SCHEMA")),
-    )
-
     def requires(self):
         return OpwDownloader()
 
@@ -223,7 +186,7 @@ class OpwCleanser(luigi.Task):
 
     def _cleanse_item_data(self, df_item: pl.DataFrame) -> pl.DataFrame:
         if not df_item.is_empty():
-            response = self.supabase_client.rpc("get_skus").execute()
+            response = current_app.supabase_client.rpc("get_skus").execute()
             sku_list = [data["_sku"] for data in response.data]
 
             cols = {
@@ -278,8 +241,6 @@ class OpwCleanser(luigi.Task):
 
 class OpwAnalyser(luigi.Task):
     """Categorise promotions and calculate unit prices."""
-    threshold = CONFIG.getfloat("TASK", "THRESHOLD")
-
     def requires(self):
         return OpwCleanser()
 
@@ -330,8 +291,8 @@ class OpwAnalyser(luigi.Task):
         return values
 
     def _calculate_discount_price(
-            self,
-            data: dict[str, float | list[float]],
+        self,
+        data: dict[str, float | list[float]],
     ) -> float:
         price, pattern, category, values = data.values()
         discount = price
@@ -377,7 +338,8 @@ class OpwAnalyser(luigi.Task):
         except:  # ignore promotions that do not apply to any of the rules
             pass
 
-        return discount if price * self.threshold < discount else price
+        return discount if price * current_app.config["THRESHOLD"] < discount \
+            else price
 
     def _calculate_promotion_prices(
         self,
@@ -499,12 +461,6 @@ class OpwAnalyser(luigi.Task):
 
 class DatabaseRecords(luigi.Task):
     """Insert data into the database and execute necessary updates."""
-    supabase_client = create_client(
-        os.getenv("SUPABASE_URL"),
-        os.getenv("SUPABASE_KEY"),
-        ClientOptions(schema=CONFIG.get("DATABASE", "SCHEMA")),
-    )
-
     def requires(self):
         return [
             OpwVersions(),
@@ -535,53 +491,37 @@ class DatabaseRecords(luigi.Task):
         LOGGER.info("\t- Updated the database.")
 
     def _insert_record(
-            self,
-            table: str,
-            df: pl.DataFrame,
-            batch: int=10_000,
+        self,
+        table: str,
+        df: pl.DataFrame,
+        batch: int=10_000,
     ) -> None:
         data = json.loads(df.write_json())
 
         for i in range(0, len(data), batch):
-            self.supabase_client.table(table).insert(data[i:i+batch]).execute()
+            current_app.supabase_client.table(table) \
+                .insert(data[i:i+batch]) \
+                .execute()
 
     def _update_items(self, df_item) -> None:
         self._insert_record("items", df_item)
 
     def _update_prices(self, df_price, date_expiry) -> None:
-        self.supabase_client.table("prices") \
+        current_app.supabase_client.table("prices") \
             .delete().in_("effective_date", date_expiry) \
             .execute()
 
         self._insert_record("prices", df_price)
 
     def _update_deals(self) -> None:
-        self.supabase_client.rpc("update_deals").execute()
+        current_app.supabase_client.rpc("update_deals").execute()
 
     def _log_omission(self) -> None:
-        self.supabase_client.rpc("log_omission").execute()
+        current_app.supabase_client.rpc("log_omission").execute()
 
 
 class DailyPriceAlert(luigi.Task):
     """Send price alert notification to users via webhook."""
-    api = CONFIG.get("API", "BOT").format(os.getenv("FORWARDING_URL"))
-
-    _now = datetime.now(pytz.timezone(CONFIG.get("TIME", "TIMEZONE")))
-    wkday = _now.isocalendar().weekday
-
-    _target = _now.replace(
-        hour=CONFIG.getint("TIME", "HOUR"),
-        minute=0,
-        second=0,
-    )
-    wait = max(0, (_target-_now).total_seconds())
-
-    supabase_client = create_client(
-        os.getenv("SUPABASE_URL"),
-        os.getenv("SUPABASE_KEY"),
-        ClientOptions(schema=CONFIG.get("DATABASE", "SCHEMA")),
-    )
-
     def requires(self):
         return [
             OpwVersions(),
@@ -597,8 +537,15 @@ class DailyPriceAlert(luigi.Task):
 
         n_users = 0
         if data["version"]:
-            if self.wkday not in [5, 6]:  # skip the first 2 days of promotion week
-                time.sleep(self.wait)  # only send alerts at a specific time
+            _now = datetime.now(current_app.hkt)
+            _target = _now.replace(
+                hour=current_app.config["HOUR"],
+                minute=0,
+                second=0,
+            )
+
+            if _now.isocalendar().weekday not in [5, 6]:  # skip the first 2 days of promotion week
+                time.sleep(max(0, (_target-_now).total_seconds()))  # only send alerts at a specific time
                 n_users += self._blast_alerts()
 
         with self.output().open("w") as f:
@@ -607,11 +554,11 @@ class DailyPriceAlert(luigi.Task):
         LOGGER.info(f"\t- Blasted price alert to {n_users} users.")
 
     def _blast_alerts(self) -> int:
-        response = self.supabase_client.rpc("get_users").execute()
+        response = current_app.supabase_client.rpc("get_users").execute()
 
         for data in response.data:
             requests.post(
-                self.api,
+                current_app.config["API_BOT"],
                 json={
                     "message": {
                         "from": {
@@ -628,23 +575,21 @@ class DailyPriceAlert(luigi.Task):
 
 class EntryPoint(luigi.Task):
     """Manage task output caches for daily execution."""
-    _today = datetime.now(pytz.timezone(CONFIG.get("TIME", "TIMEZONE")))
-    tdy = _today.strftime("%Y%m%d")
-    ytd = (_today - timedelta(days=1)).strftime("%Y%m%d")
-
     def requires(self):
         return DailyPriceAlert()
 
     def output(self):
-        return luigi.LocalTarget(PTH / "logs" / f"task_{self.tdy}.txt")
+        tdy = datetime.now(current_app.hkt).strftime("%Y%m%d")
+        return luigi.LocalTarget(PTH / "logs" / f"task_{tdy}.txt")
 
     def run(self):
         self._clear_task_caches()
 
         with self.output().open("w") as f:
-            f.write(f"Completed daily execution on {self.tdy}.")
+            tdy = datetime.now(current_app.hkt).strftime("%Y%m%d")
+            f.write(f"Completed daily execution on {tdy}.")
 
-    def _get_task_outputs(self, task):
+    def _get_task_outputs(self, task) -> list[str]:
         outputs = task.output()
         if isinstance(outputs, luigi.LocalTarget):
             outputs = [outputs]
@@ -661,14 +606,29 @@ class EntryPoint(luigi.Task):
 
         return file_pths
 
-    def _clear_task_caches(self):
+    def _clear_task_caches(self) -> None:
+        ytd = datetime.now(current_app.hkt) - timedelta(days=1)
+
         file_pths = self._get_task_outputs(self.requires())
-        file_pths.append(PTH / "logs" / f"task_{self.ytd}.txt")
+        file_pths.append(PTH / "logs" / f"task_{ytd.strftime('%Y%m%d')}.txt")
 
         for file_pth in file_pths:
             if os.path.exists(file_pth):
                 os.remove(file_pth)
 
 
-if __name__ == "__main__":
-    luigi.build([EntryPoint()], local_scheduler=True)
+@bp.route("/api/v1/update", methods=["GET"])
+def execute_pipeline() -> tuple[dict[str, str], int]:
+    if request.args.get("secret") == current_app.config["SECRET_PIPELINE"]:
+        try:
+            luigi.build([EntryPoint()], local_scheduler=True, workers=1)
+        except Exception:
+            logging.error("Pipeline failed", exc_info=True)
+
+            return {"status": "failed"}, 500
+    else:
+        logging.warning("Invalid pipeline access secret.")
+
+        return {"status": "invalid secret"}, 403
+
+    return {"status": "completed"}, 200

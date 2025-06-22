@@ -1,9 +1,10 @@
 Flask==2.1.2
 GitPython==3.1.27
+gunicorn==23.0.0
 luigi==3.6.0
 matplotlib==3.5.2
 numpy==1.21.6
-polars==1.16.0
+polars-lts-cpu==1.31.0
 pytest==8.3.5
 python-dotenv==1.0.1
 pytz==2021.3

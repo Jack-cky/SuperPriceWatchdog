@@ -18,6 +18,7 @@ Integrated the pipeline into the web application.
 - Updated environment variable names for consistency.
 - Updated solution design images.
 ### Fixed
+- Fixed pipeline to calling internal functions instead of posting to the API because PythonAnywhere has only 1 worker for free tier.
 
 ### [2.1.3] - 2025-05-16
 Modified pipeline to avoid problematic upstream data.

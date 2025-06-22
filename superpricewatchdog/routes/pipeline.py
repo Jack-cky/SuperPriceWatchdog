@@ -11,6 +11,7 @@ import requests
 from flask import Blueprint, current_app, request
 
 from ..config import PTH, LOGGER
+from .response import slash_alert, send_response
 
 
 bp = Blueprint("pipeline", __name__)
@@ -557,18 +558,8 @@ class DailyPriceAlert(luigi.Task):
         response = current_app.supabase_client.rpc("get_users").execute()
 
         for data in response.data:
-            requests.post(
-                current_app.config["API_BOT"],
-                json={
-                    "message": {
-                        "from": {
-                            "id": data["_id"],
-                        },
-                        "text": "/alert",
-                    }
-                },
-                timeout=30,
-            )
+            msg = slash_alert(data["_id"])
+            send_response(data["_id"], msg, None)
 
         return len(response.data)
 

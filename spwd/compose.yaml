@@ -1,0 +1,30 @@
+name: spwd
+
+services:
+  bot:
+    image: jackcky/spwd-bot:latest
+    container_name: spwd-bot
+    platform: linux/amd64
+    build:
+      context: ..
+      dockerfile: spwd/bot/Dockerfile
+    ports:
+      - "5000:5000"
+    env_file:
+      - ../config/.env
+    restart: unless-stopped
+
+  pipeline:
+    image: jackcky/spwd-pipeline:latest
+    container_name: spwd-pipeline
+    platform: linux/amd64
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    build:
+      context: ..
+      dockerfile: spwd/pipeline/Dockerfile
+    volumes:
+      - ../data:/app/data
+      - ../logs:/app/logs
+    env_file:
+      - ../config/.env
+    restart: "no"

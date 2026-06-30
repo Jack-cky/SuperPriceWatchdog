@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="{% block description %}SuperPriceWatchdog{% endblock %}">
+    <title>{% block title %}SuperPriceWatchdog{% endblock %}</title>
+    <link rel="icon" href="https://fav.farm/&#128054;">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block head %}{% endblock %}
+  </head>
+
+  <body class="{% block body_class %}{% endblock %}">
+    {% block content %}{% endblock %}
+  </body>
+</html>

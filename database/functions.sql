@@ -64,8 +64,6 @@ AS $$
 DECLARE
     latest_date DATE;
 BEGIN
-    SET LOCAL statement_timeout = '5min';
-
     SELECT MAX(effective_date)
     INTO latest_date
     FROM prices;
@@ -214,8 +212,6 @@ CREATE OR REPLACE FUNCTION watchdog.remove_legacy_prices(p_interval INT)
     SET search_path = 'watchdog'
 AS $$
 BEGIN
-    SET LOCAL statement_timeout = '5min';
-
     DELETE FROM prices
     WHERE effective_date < CURRENT_DATE - p_interval - 1;
 END;

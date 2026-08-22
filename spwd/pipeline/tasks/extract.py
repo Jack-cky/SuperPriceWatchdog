@@ -35,7 +35,7 @@ class OpwDownloader(luigi.Task):
 
     def run(self):
         with self.input().open("r") as f:
-            date_version = json.load(f)
+            date_version = json.load(f)["versions"]
 
         df_item, df_price = self._download_records(date_version)
 

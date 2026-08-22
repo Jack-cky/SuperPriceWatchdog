@@ -11,7 +11,7 @@ Whilst it is possible to track these fluctuations manually, doing so can be both
 <div align="right">
   <a href="https://t.me/SuperPriceWatchdogBot"><img src="https://custom-icon-badges.demolab.com/badge/Telegram-2CA5E0?logo=telegram&logoColor=fff"></a>
   <a href="https://docs.google.com/spreadsheets/d/1hZBngU6REh5M9iyUclPlf8IyO3Iz3ZVW1exo_-vM1ks/pubhtml?gid=1316504644&single=true"><img src="https://custom-icon-badges.demolab.com/badge/Backlog-319E4F?logo=Google-Sheets&logoColor=fff"></a>
-  <p><strong>First Published:</strong> 15 February 2024<br><strong>Last Updated:</strong> 30 June 2026</p>
+  <p><strong>First Published:</strong> 15 February 2024<br><strong>Last Updated:</strong> 22 August 2026</p>
 </div>
 
 

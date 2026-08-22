@@ -1,4 +1,4 @@
-.PHONY: help build push bot pipeline down
+.PHONY: help build push pull bot pipeline down
 
 COMPOSE_FILE := spwd/compose.yaml
 COMPOSE := docker compose -f $(COMPOSE_FILE)
@@ -8,6 +8,7 @@ help:
 	@echo "  make help       # Show available targets"
 	@echo "  make build      # Build the bot and pipeline container images"
 	@echo "  make push       # Push the bot and pipeline container images to Docker Hub"
+	@echo "  make pull       # Pull the pipeline container image from Docker Hub"
 	@echo "  make bot        # Start the bot service in detached mode"
 	@echo "  make pipeline   # Run the pipeline service using the existing image"
 	@echo "  make down       # Stop and remove services defined in spwd/compose.yaml"
@@ -18,11 +19,14 @@ build:
 push:
 	$(COMPOSE) push
 
+pull:
+	$(COMPOSE) pull pipeline
+
 bot:
 	$(COMPOSE) up -d --no-build bot
 
 pipeline:
-	$(COMPOSE) run --rm pipeline
+	$(COMPOSE) run --rm --pull never pipeline
 
 down:
 	$(COMPOSE) down

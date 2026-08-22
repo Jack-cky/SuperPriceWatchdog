@@ -5,6 +5,7 @@ import polars as pl
 
 from .analyse import OpwAnalyser
 from .cleanse import OpwCleanser
+from .scope import OpwVersions
 from ...shared.clients import SUPABASE_CLIENT
 from ...shared.io import read_target
 from ...shared.logging import LUIGI_LOGGER
@@ -17,6 +18,7 @@ class OpwDatabase(luigi.Task):
 
     def requires(self):
         return {
+            "scoper": OpwVersions(date=self.date),
             "cleanser": OpwCleanser(date=self.date),
             "analyser": OpwAnalyser(date=self.date),
         }
@@ -29,12 +31,16 @@ class OpwDatabase(luigi.Task):
         )
 
     def run(self):
+        with self.input()["scoper"].open("r") as f:
+            omitted = json.load(f)["omitted"]
+
         df_item = read_target(self.input()["cleanser"][0])
         df_price = read_target(self.input()["analyser"])
 
-        if df_price.is_empty():
+        if omitted:
             self._log_omission()
-        else:
+
+        if not df_price.is_empty():
             self._update_items(df_item)
             self._update_supermarkets(df_price)
             self._update_prices(df_price)
@@ -56,7 +62,7 @@ class OpwDatabase(luigi.Task):
         for i in range(0, total, batch):
             LUIGI_LOGGER.info(
                 f"[DB] {table}: upserting "
-                f"{i+1}-{min(i+batch, total)} / {total}"
+                f"{i+1:,}-{min(i+batch, total):,} / {total:,}"
             )
             SUPABASE_CLIENT.table(table).upsert(data[i:i+batch]).execute()
 

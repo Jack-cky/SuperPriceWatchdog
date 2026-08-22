@@ -8,19 +8,21 @@ on:
 jobs:
   run-pipeline:
     runs-on: ubuntu-latest
-    environment: mvp-pipeline
+    environment: prod-pipeline
     steps:
       - name: Checkout repo
         uses: actions/checkout@v5
 
       - name: Wake bot app
         continue-on-error: true
+        env:
+          BOT_URL: ${{ secrets.FORWARDING_URL }}
         run: |
           curl --silent --show-error --fail-with-body \
             --retry 3 \
             --connect-timeout 10 \
             --max-time 30 \
-            https://spwd-bot.koyeb.app/health
+            "${BOT_URL:?}/health"
 
       - name: Prepare runtime files
         env:
@@ -35,20 +37,26 @@ jobs:
           SUPABASE_SCHEMA=${SUPABASE_SCHEMA:?}
           EOF
 
+      - name: Pull pipeline image
+        run: |
+          for i in 1 2 3; do
+            make pull && exit 0
+            sleep 10
+          done
+          exit 1
+
       - name: Run pipeline
         run: |
           HOST_UID="$(id -u)"
           HOST_GID="$(id -g)"
           export HOST_UID HOST_GID
-          make pipeline || \
-          (sleep 10 && make pipeline) || \
-          (sleep 10 && make pipeline) || \
-          exit 1
+          make pipeline
 
       - name: Trigger alerts
         if: success()
         env:
           API_SECRET: ${{ secrets.API_SECRET }}
+          BOT_URL: ${{ secrets.FORWARDING_URL }}
         run: |
           test -n "$API_SECRET"
           curl --silent --show-error --fail-with-body \
@@ -57,7 +65,7 @@ jobs:
             --max-time 30 \
             -X POST \
             -H "X-Internal-Token: $API_SECRET" \
-            https://spwd-bot.koyeb.app/api/v1/alert
+            "${BOT_URL:?}/api/v1/alert"
 
       - name: Upload artifacts
         if: always()

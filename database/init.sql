@@ -24,3 +24,7 @@ SELECT setval(
     pg_get_serial_sequence('watchdog.supermarkets', 'preference'),
     (SELECT MAX(preference) FROM watchdog.supermarkets)
 );
+
+-- Raise the statement timeout for API requests made with the service key
+ALTER ROLE service_role SET statement_timeout TO '5min';
+NOTIFY pgrst, 'reload config';

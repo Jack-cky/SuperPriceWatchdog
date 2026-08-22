@@ -25,12 +25,18 @@ class OpwVersions(luigi.Task):
     def run(self):
         date_version = self._fetch_latest_records()
         existing_dates = self._get_existing_records()
-        data = self._update_windows(date_version, existing_dates)
+        versions = self._update_windows(date_version, existing_dates)
+
+        expected = (self.date - timedelta(days=2)).strftime("%Y%m%d")
+        data = {
+            "omitted": expected not in date_version,
+            "versions": versions,
+        }
 
         with self.output().open("w") as f:
             json.dump(data, f)
 
-        LUIGI_LOGGER.info(f"\t- Outstanding date(s): {data.keys()}")
+        LUIGI_LOGGER.info(f"\t- Outstanding date(s): {versions.keys()}")
 
     def _fetch_latest_records(self) -> dict[str, str]:
         end = self.date - timedelta(days=1)

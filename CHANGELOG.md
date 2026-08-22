@@ -1,5 +1,24 @@
 # Changelog
 
+## [2.3.2] - 2026-08-22
+
+Improved pipeline deployment and handled omitted OPW data versions.
+
+### Added
+- Added a script to configure the production GitHub environment and secrets.
+- Added a Makefile target to pull the pipeline image from Docker Hub.
+
+### Changed
+- Updated the scheduled workflow to use the production environment and retry pipeline image pulls.
+- Updated the scheduled workflow to use the configured bot forwarding URL for health checks and alerts.
+- Updated the pipeline to track omitted OPW versions separately from available data versions.
+- Streamlined version extraction across the scope, download, and database tasks.
+- Updated the bot feedback link to use GitHub Discussions.
+- Configured a five-minute statement timeout for service-role API requests.
+
+### Fixed
+- Continued loading available records when the expected OPW version is omitted.
+
 ## [2.3.1] - 2026-06-30
 
 Refactored project structure and modularised the bot and pipeline components.

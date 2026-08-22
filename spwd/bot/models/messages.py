@@ -51,7 +51,7 @@ class BotMessages:
                 "If you want to give feedback or find any bugs, you can "
                 "leave a message for us to improve at this "
                 "<a href='https://github.com/Jack-cky/"
-                "SuperPriceWatchdog/issues'>link</a>."
+                "SuperPriceWatchdog/discussions'>link</a>."
             ),
             "zh": (
                 "🔰 幫緊你，幫緊你\n\n"
@@ -71,7 +71,7 @@ class BotMessages:
                 "乜嘢抵買。仲有you可以讕喺嘢咁change你個 /lang 去English。\n\n"
                 "如果你想發表意見或者發現有bugs，你可以去"
                 "<a href='https://github.com/Jack-cky/"
-                "SuperPriceWatchdog/issues'>依到</a>留個言俾我地去改善㗎。"
+                "SuperPriceWatchdog/discussions'>依到</a>留個言俾我地去改善㗎。"
             ),
         }.get(language, msg)
 

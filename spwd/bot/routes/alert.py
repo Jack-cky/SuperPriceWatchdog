@@ -18,7 +18,19 @@ def blast_alerts() -> str:
     if datetime.now(current_app.hkt).isoweekday() not in [5, 6]:  # skip the first 2 days of promotion week
         for row in response.data:
             msg = slash_alert(row["id"])
-            send_response(row["id"], msg, None)
+            send_response(
+                row["id"],
+                msg,
+                None,
+                {
+                    "inline_keyboard": [[
+                        {
+                            "text": "💤 Snooze",
+                            "callback_data": "/snooze",
+                        },
+                    ]],
+                },
+            )
 
     current_app.logger.info(
         f"[Daily Alert] Blasted to {len(response.data):,} users."

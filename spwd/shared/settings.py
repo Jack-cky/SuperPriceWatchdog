@@ -39,6 +39,7 @@ class Endpoints:
     FILE = INI.get("API", "FILE")
     VERSION = INI.get("API", "VERSION")
 
+    CALLBACK = INI.get("TELEGRAM", "CALLBACK").format(_tg_token)
     IMG = INI.get("TELEGRAM", "IMG").format(_tg_token)
     MSG = INI.get("TELEGRAM", "MSG").format(_tg_token)
     WEBHOOK = INI.get("TELEGRAM", "WEBHOOK").format(_tg_token, _fw_url)

@@ -8,13 +8,15 @@ from .commands import (
     slash_list,
     slash_lucky,
     slash_plot,
+    slash_snooze,
     slash_start,
     slash_sub,
     slash_unk,
 )
-from .telegram import send_response
+from .telegram import answer_callback, send_response
 
 __all__ = [
+    "answer_callback",
     "send_response",
     "slash_alert",
     "slash_bye",
@@ -25,6 +27,7 @@ __all__ = [
     "slash_list",
     "slash_lucky",
     "slash_plot",
+    "slash_snooze",
     "slash_start",
     "slash_sub",
     "slash_unk",

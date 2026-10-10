@@ -229,6 +229,25 @@ def slash_plot(usr_id: int, code: str) -> bytes:
     return img.getvalue()
 
 
+def slash_snooze(usr_id: int, sent_at: int | None) -> str:
+    sent = datetime.fromtimestamp(sent_at, current_app.hkt) \
+        if sent_at else datetime.now(current_app.hkt)
+    next_promo_date = sent + timedelta(days=(4 - sent.isoweekday()) % 7 + 1)
+
+    response = current_app.supabase_client.rpc(
+        "snooze_user",
+        {"p_user_id": usr_id, "p_until": f"{next_promo_date:%Y-%m-%d}"},
+    ).execute()
+
+    snoozed_until = datetime.fromisoformat(response.data[0]["snoozed_until"])
+
+    return BotMessages.snooze(
+        response.data[0].get("language"),
+        f"{snoozed_until + timedelta(days=2):%d/%m}",  # Fri/Sat alerts are skipped
+        slash_unk("na"),
+    )
+
+
 def slash_start(usr_id: int, user_name: str, usr_lang: str) -> str:
     response = current_app.supabase_client.rpc(
         "register_user",

@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.3.3] - 2026-10-10
+
+Added the ability to snooze daily alerts for the current promotion week.
+
+### Added
+- Added a snooze button to daily alerts and a `/snooze` command that pauses alerts until the next promotion week.
+- Added Telegram callback handling for inline alert buttons.
+- Added `users.snoozed_until` column and `snooze_user` database function.
+
+### Changed
+- Excluded snoozed users from `get_users`; toggling `/sub` now clears any snooze.
+- Updated Docker image builds to install dependencies with `uv`.
+
 ## [2.3.2] - 2026-08-22
 
 Improved pipeline deployment and handled omitted OPW data versions.

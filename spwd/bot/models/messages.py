@@ -44,7 +44,8 @@ class BotMessages:
                 "I'll add the product you want to track to this /list, and "
                 "you can view and modify the items in it anytime. Remember "
                 "to /sub for daily price alerts, so when the item is at a "
-                "good price, I'll remind you to buy it.\n\n"
+                "good price, I'll remind you to buy it. Too noisy? /snooze "
+                "them until next promotion week.\n\n"
                 "If you feel a bit lost, you can try feeling /lucky and "
                 "randomly see what's on sale today. Also, you can 更改 your "
                 " /lang to 中文 if you 唔識睇.\n\n"
@@ -66,7 +67,7 @@ class BotMessages:
                 "如果唔想我再留意件貨，send多次條link俾我就得㗎喇。\n\n"
                 "我會將你想關注嘅產品放入依條 /list 裏面，你隨時都可以"
                 "睇返同修改入面嘅嘢。記住 /sub 每日嘅價格通知，咁到時件貨抵買嘅"
-                "時間我就會提你入手㗎喇。\n\n"
+                "時間我就會提你入手㗎喇。嫌嘈就 /snooze 到下個特價週週末。\n\n"
                 "如果你覺得迷惘，你可以試下 feeling /lucky 咁隨機睇吓今日有啲"
                 "乜嘢抵買。仲有you可以讕喺嘢咁change你個 /lang 去English。\n\n"
                 "如果你想發表意見或者發現有bugs，你可以去"
@@ -104,6 +105,13 @@ class BotMessages:
                 "數據更新中，逢週五六唔lucky。"
             )
         }.get(language, msg)
+
+    @classmethod
+    def snooze(cls, language: str, resume: str, msg: str) -> str:
+        return {
+            "en": "Zzz... I'll stay quiet until Sunday {}. 💤",
+            "zh": "Zzz... 今個星期唔吠住，{}(日)再算。💤",
+        }.get(language, msg).format(resume)
 
     @classmethod
     def lang(cls, language: str, msg: str) -> str:

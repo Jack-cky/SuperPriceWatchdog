@@ -54,6 +54,7 @@ BEGIN
         user_id TEXT NOT NULL,
         display_language VARCHAR DEFAULT 'en',
         is_subscribed BOOLEAN DEFAULT FALSE,
+        snoozed_until DATE,
         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
         CONSTRAINT users_pkey PRIMARY KEY (user_id)
     );

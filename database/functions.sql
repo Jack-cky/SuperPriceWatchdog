@@ -188,6 +188,7 @@ BEGIN
     SELECT u.user_id
     FROM users u
     WHERE u.is_subscribed = TRUE
+        AND (u.snoozed_until IS NULL OR u.snoozed_until <= (now() AT TIME ZONE 'Asia/Hong_Kong')::DATE)
         AND EXISTS (SELECT 1 FROM users_with_deals i WHERE u.user_id = i.user_id);
 END;
 $$ LANGUAGE plpgsql STABLE PARALLEL SAFE;
@@ -440,12 +441,31 @@ AS $$
 BEGIN
     RETURN QUERY
     UPDATE users u
-    SET is_subscribed = NOT u.is_subscribed
+    SET is_subscribed = NOT u.is_subscribed, snoozed_until = NULL
     WHERE u.user_id = p_user_id
     RETURNING u.display_language, u.is_subscribed;
 
     IF NOT FOUND THEN
         RETURN QUERY SELECT 'na', FALSE;
+    END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+/* SNOOZE ALERTS UNTIL A GIVEN DATE */
+CREATE OR REPLACE FUNCTION watchdog.snooze_user(p_user_id TEXT, p_until DATE)
+    RETURNS TABLE("language" VARCHAR, snoozed_until DATE)
+    SET search_path = 'watchdog'
+AS $$
+BEGIN
+    RETURN QUERY
+    UPDATE users u
+    SET snoozed_until = GREATEST(u.snoozed_until, p_until)
+    WHERE u.user_id = p_user_id
+    RETURNING u.display_language, u.snoozed_until;
+
+    IF NOT FOUND THEN
+        RETURN QUERY SELECT 'na', p_until;
     END IF;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

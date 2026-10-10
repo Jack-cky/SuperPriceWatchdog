@@ -4,6 +4,7 @@ from flask import Blueprint, current_app, request
 
 from ..models import ExternalSlash, InternalSlash, HiddenSlash
 from ..services import (
+    answer_callback,
     send_response,
     slash_alert,
     slash_bye,
@@ -14,6 +15,7 @@ from ..services import (
     slash_list,
     slash_lucky,
     slash_plot,
+    slash_snooze,
     slash_start,
     slash_sub,
     slash_unk,
@@ -44,6 +46,16 @@ def get_command(usr_msg: str) -> tuple[str, str]:
 @bp.route("/reply", methods=["POST"])
 def handle_message() -> str:
     data = request.get_json()
+    if query := data.get("callback_query"):
+        answer_callback(query["id"])
+        data = {
+            "message": {
+                "from": query["from"],
+                "text": query["data"],
+                "date": query.get("message", {}).get("date"),  # when the alert was sent
+            },
+        }
+
     if "message" in data:
         usr_id = data["message"]["from"]["id"]
         usr_msg = data["message"].get("text", "non-text message")
@@ -68,6 +80,8 @@ def handle_message() -> str:
                     msg = slash_list(usr_id)
                 case ExternalSlash.LUCKY:
                     msg = slash_lucky(usr_id)
+                case ExternalSlash.SNOOZE:
+                    msg = slash_snooze(usr_id, data["message"]["date"])
                 case ExternalSlash.START:
                     msg = slash_start(
                         usr_id,
